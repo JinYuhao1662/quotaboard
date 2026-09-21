@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · Coding Plan 额度看板</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2312946f'/%3E%3Cpath d='M13 3 5 13.5h6l-1 7.5 8-10.5h-6l1-7.5z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: light dark; --bg: #f3f8f6; --surface: #fff; --ink: #0e1f1a; --ink-2: #4c5f58; --ink-3: #7f918a; --line: #dde7e2; --border: rgba(14,31,26,.08); --accent: #12946f; --crit: #d9483b; --grad: linear-gradient(95deg, #0f6e5a 0%, #12946f 45%, #34c98a 100%); }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0a1310; --surface: #121d18; --ink: #e9f2ee; --ink-2: #aabcb4; --ink-3: #7f918a; --line: #22312a; --border: rgba(255,255,255,.08); --accent: #2cc08e; --grad: linear-gradient(95deg, #1a8f6c 0%, #2cc08e 50%, #7fe8c0 100%); } }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background-color: var(--bg); background-image: radial-gradient(900px 420px at 20% -10%, rgba(52,201,138,.18), transparent 60%); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .box { width: min(360px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 28px 26px 22px; box-shadow: 0 20px 50px -24px rgba(14,31,26,.35); text-align: center; }
+  .logo { width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 12px; background: var(--grad); display: grid; place-items: center; box-shadow: 0 10px 22px -10px rgba(18,148,111,.8); }
+  .logo svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin: 4px 0 18px; color: var(--ink-3); font-size: 12.5px; }
+  input { width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font: inherit; }
+  input:focus-visible { outline: 2px solid rgba(18,148,111,.45); outline-offset: 1px; border-color: var(--accent); }
+  button { width: 100%; height: 40px; margin-top: 10px; border: 0; border-radius: 10px; background: var(--grad); color: #fff; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 10px 22px -10px rgba(18,148,111,.8); }
+  button:hover { filter: brightness(1.06); }
+  .err { margin: 14px 0 0; color: var(--crit); font-weight: 600; font-size: 13px; }
+  .hint { margin: 4px 0 0; color: var(--ink-3); font-size: 12px; }
+  .err:empty, .hint:empty { display: none; }
+  .foot { margin-top: 18px; color: var(--ink-3); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<main class="box">
+  <div class="logo"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+  <h1>Coding Plan 额度看板</h1>
+  <p class="sub">请输入访问口令</p>
+  <form method="post" action="__ACTION__" autocomplete="off">
+    <input type="password" name="password" placeholder="访问口令" autofocus required autocomplete="current-password">
+    <button type="submit">进入</button>
+  </form>
+  <p class="err">__ERROR__</p>
+  <p class="hint">__HINT__</p>
+</main>
+</body>
+</html>

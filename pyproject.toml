@@ -1,0 +1,14 @@
+[project]
+name = "quotaboard"
+version = "0.1.0"
+description = "Coding Plan 额度看板：多账号的已用额度、每周重置、订阅到期一览（本地明文 JSON 存储，标准库 HTTP 服务）"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
