@@ -554,8 +554,26 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
 }
+function legacyCopy(text) {
+  // navigator.clipboard 只在 HTTPS / localhost 可用；局域网明文 HTTP 下用传统办法：临时文本框选中后 execCommand('copy')
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:-1000px;left:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
 function copyText(text) {
-  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('已复制'), () => toast('复制失败，请手动选择'));
+  const done = () => toast('已复制');
+  const fail = () => toast('复制失败，请手动选择');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => (legacyCopy(text) ? done() : fail()));
+  } else {
+    legacyCopy(text) ? done() : fail();
+  }
 }
 function busy(btn, on) { if (btn) { btn.disabled = on; btn.style.opacity = on ? .6 : ''; } }
 
