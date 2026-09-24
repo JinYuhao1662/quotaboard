@@ -71,7 +71,8 @@ def test_used_update_touches_quota_timestamp(base_url, monkeypatch):
     ({**SAMPLE, "name": " "}, "用户名不能为空"),
     ({**SAMPLE, "resetDay": 8}, "重置时间（周几）"),
     ({**SAMPLE, "resetTime": "25:00"}, "HH:MM"),
-    ({**SAMPLE, "subStart": "2026/09/09"}, "YYYY-MM-DD"),
+    ({**SAMPLE, "subStart": "2026/09/09"}, "YYYY-MM-DDTHH:MM"),
+    ({**SAMPLE, "subStart": "2026-09-09T08:30+08:00"}, "时区"),
     ({**SAMPLE, "used": 101}, "已用额度"),
 ])
 def test_validation_errors(base_url, bad, message):
@@ -86,6 +87,15 @@ def test_owner_optional_and_shared_aliases(base_url):
     assert status == 201 and aliased["owner"] == "", "「全部」按共享处理"
     status, named = call(f"{base_url}/api/accounts", "POST", {**SAMPLE, "owner": " 我 "})
     assert status == 201 and named["owner"] == "我"
+
+
+def test_sub_start_keeps_time_of_day(base_url):
+    status, a = call(f"{base_url}/api/accounts", "POST", {**SAMPLE, "subStart": "2026-09-09T08:30"})
+    assert status == 201 and a["subStart"] == "2026-09-09T08:30"
+    status, b = call(f"{base_url}/api/accounts", "POST", {**SAMPLE, "subStart": "2026-09-09"})
+    assert status == 201 and b["subStart"] == "2026-09-09T00:00", "只给日期按 00:00 补齐"
+    status, c = call(f"{base_url}/api/accounts", "POST", {**SAMPLE, "subStart": "2026-09-09 21:05:30"})
+    assert status == 201 and c["subStart"] == "2026-09-09T21:05", "秒被舍掉"
 
 
 def test_validate_partial_only_touches_given_fields():

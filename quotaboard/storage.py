@@ -6,7 +6,7 @@ import json
 import os
 import re
 import threading
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -63,10 +63,12 @@ def validate_account(data: Any, *, partial: bool = False) -> dict:
     if "subStart" in data or not partial:
         s = str(data.get("subStart") or "").strip()
         try:
-            date.fromisoformat(s)
+            dt = datetime.fromisoformat(s)           # 接受 2026-09-21、2026-09-21T08:30、2026-09-21 08:30
         except ValueError:
-            raise ValidationError("订阅开始日期格式应为 YYYY-MM-DD") from None
-        out["subStart"] = s
+            raise ValidationError("订阅开始时间格式应为 YYYY-MM-DDTHH:MM") from None
+        if dt.tzinfo is not None:
+            raise ValidationError("订阅开始时间不要带时区")
+        out["subStart"] = dt.strftime("%Y-%m-%dT%H:%M")   # 统一带时分；只给日期的按 00:00
 
     if "used" in data or not partial:
         try:

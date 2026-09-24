@@ -68,7 +68,9 @@ const normalizeOwner = v => { v = String(v || '').trim(); return (v === SHARED |
 const H = 3600e3, D = 24 * H;
 const pad = n => String(n).padStart(2, '0');
 const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const todayStr = () => dateStr(new Date());
+const nowLocalStr = () => { const d = new Date(); return `${dateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };   // datetime-local 控件的值格式
+const toLocalInput = s => (s.includes('T') ? s.slice(0, 16) : s + 'T00:00');                                              // 旧数据只有日期时补 00:00
+const parseLocal = s => new Date(s.includes('T') ? s : s + 'T00:00');                                                       // 不带时区 → 按本地时间解析
 
 /* ===================== 状态 ===================== */
 let accounts = [];
@@ -174,7 +176,7 @@ function derive(acc, now = new Date()) {
   const updated = acc.quotaUpdatedAt ? new Date(acc.quotaUpdatedAt) : null;
   const inferredReset = !!updated && updated < last;       // 记录早于最近一次重置点
   const usedEff = inferredReset ? 0 : (acc.used || 0);
-  const subStart = acc.subStart ? new Date(acc.subStart + 'T00:00:00') : null;
+  const subStart = acc.subStart ? parseLocal(acc.subStart) : null;
   const subEnd = subStart && !isNaN(subStart) ? addMonths(subStart, 1) : null;
   const daysLeft = subEnd ? Math.ceil((subEnd - now) / D) : null;
   const expired = !!subEnd && subEnd <= now;                 // 到期优先级最高：到期后有额度也不可用
@@ -285,7 +287,7 @@ function renderOverview(list) {
     <div class="card tile">
       <div class="label">即将到期</div>
       <div class="value">${expiring.length ? fmtCountdown(expiring[0].subEnd - now, true) : '—'}<small>${expiring.length ? '后' : ''}</small></div>
-      <div class="sub">${expiring.length ? `${esc(expiring[0].name)} ${fmtDate(expiring[0].subEnd)} 到期 · ${SOON_DAYS} 天内共 ${expiring.length} 个` : `${SOON_DAYS} 天内没有订阅到期`}</div>
+      <div class="sub">${expiring.length ? `${esc(expiring[0].name)} ${fmtDT(expiring[0].subEnd)} 到期 · ${SOON_DAYS} 天内共 ${expiring.length} 个` : `${SOON_DAYS} 天内没有订阅到期`}</div>
     </div>
     <div class="card tile">
       <div class="label">建议优先使用</div>
@@ -355,7 +357,7 @@ function renderTimeline(list) {
     const a = row.a;
     const y0 = row.y, cy = y0 + 29, barY = y0 + 21, barH = 16, ly = y0 + 13;
     g += `<line class="lane-sep" x1="0" x2="${W}" y1="${y0 + TL.LH}" y2="${y0 + TL.LH}"/>`;
-    if (a.expired) { g += `<text class="muted-text" x="10" y="${cy + 4}">订阅已于 ${fmtDate(a.subEnd)} 到期 · 之后有额度也不可用，续订后继续</text>`; return; }
+    if (a.expired) { g += `<text class="muted-text" x="10" y="${cy + 4}">订阅已于 ${fmtDT(a.subEnd)} 到期 · 之后有额度也不可用，续订后继续</text>`; return; }
     const endT = a.subEnd ? a.subEnd.getTime() : start.getTime() + totalDays * D;   // 到期即截止
     let lane = `<g class="lane s-${a.status}">`;
     if (a.last >= start) lane += `<path class="dia past-dia" d="${dia(x(a.last), cy)}"><title>${esc(a.name)} · 已于 ${fmtDT(a.last)} 重置</title></path>`;
@@ -378,8 +380,8 @@ function renderTimeline(list) {
     }
     if (a.subEnd) {
       const ex = x(endT);
-      lane += `<line class="exp" x1="${ex}" x2="${ex}" y1="${y0 + 6}" y2="${y0 + TL.LH - 6}"><title>${esc(a.name)} 订阅 ${fmtDate(a.subEnd)} 到期</title></line>`;
-      lane += `<text class="exp-text" x="${ex - 5}" y="${ly}" text-anchor="end">到期 ${fmtDate(a.subEnd)}</text>`;
+      lane += `<line class="exp" x1="${ex}" x2="${ex}" y1="${y0 + 6}" y2="${y0 + TL.LH - 6}"><title>${esc(a.name)} 订阅 ${fmtDT(a.subEnd)} 到期</title></line>`;
+      lane += `<text class="exp-text" x="${ex - 5}" y="${ly}" text-anchor="end">到期 ${fmtDT(a.subEnd)}</text>`;
     }
     g += lane + `</g>`;
   });
@@ -448,7 +450,7 @@ const sharedHTML = a => ownerOf(a) ? '' : `<span class="prov" title="共享账�
 const tagHTML  = a => a.recommended ? `<span class="tag">${icon('star', 'sm')}建议优先</span>` : '';
 function subLine(a) {
   if (!a.subEnd) return `<span class="faint">未填订阅开始日期</span>`;
-  const range = `订阅 ${fmtDate(a.subStart)} 至 ${fmtDate(a.subEnd)}`;
+  const range = `订阅 ${fmtDT(a.subStart)} 至 ${fmtDT(a.subEnd)}`;
   if (a.expired) return `${range}<span class="spacer"></span><span class="crit">已到期</span>`;
   if (a.expiringSoon) return `${range}<span class="spacer"></span><span class="pill xs s-low">${icon('alert', 'sm')}${a.daysLeft <= 1 ? '今天' : `${a.daysLeft} 天后`}到期</span>`;
   return `${range}<span class="spacer"></span><span class="faint">剩余 ${a.daysLeft} 天</span>`;
@@ -499,7 +501,7 @@ function tableHTML(list) {
       <td>${pillHTML(a)}</td>
       <td>${fmtReset(a)}</td>
       <td class="num">${a.expired ? '<span class="muted">—</span>' : fmtCountdown(a.next - now)}</td>
-      <td class="num">${a.subEnd ? fmtDate(a.subEnd) + (a.expired ? ' <span style="color:var(--crit);font-weight:600">已到期</span>' : ` <span class="muted">${a.daysLeft} 天后</span>`) : '—'}</td>
+      <td class="num">${a.subEnd ? fmtDT(a.subEnd) + (a.expired ? ' <span style="color:var(--crit);font-weight:600">已到期</span>' : ` <span class="muted">${a.daysLeft} 天后</span>`) : '—'}</td>
       <td class="mono">${pwHTML(a)}</td>
       <td>${chipsHTML(a, true) || '<span class="muted">—</span>'}</td>
       <td class="notes" title="${esc(a.notes)}">${esc(a.notes) || '<span class="muted">—</span>'}</td>
@@ -568,7 +570,7 @@ function openEditor(id, opts = {}) {
   f.owner.value = a ? (ownerOf(a) || SHARED) : (filterOwner || SHARED);   // 新增时默认「全部」，正在筛选某个用户则默认该用户
   f.name.value = a?.name || ''; f.provider.value = a?.provider || ''; f.account.value = a?.account || ''; f.password.value = a?.password || '';
   f.resetDay.value = a?.resetDay || 1; f.resetTime.value = a?.resetTime || '08:00';
-  f.subStart.value = opts.renew ? todayStr() : (a?.subStart || todayStr());
+  f.subStart.value = opts.renew || !a?.subStart ? nowLocalStr() : toLocalInput(a.subStart);
   f.used.value = f.usedRange.value = a && !opts.renew ? a.used : 0;
   f.notes.value = a?.notes || '';
   f.mailPlatform.value = a?.mailPlatform || ''; f.recoveryEmail.value = a?.recoveryEmail || ''; f.phone.value = a?.phone || ''; f.smsPlatform.value = a?.smsPlatform || ''; f.totp.value = a?.totp || '';

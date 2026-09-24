@@ -63,7 +63,7 @@ uv run pytest -q                               # 测试
 | `provider` | 是 | 服务商，如 Claude、ChatGPT；前端按名字匹配色卡，未知名字从备用色卡顺序取色 |
 | `account` / `password` | 是 | 登录账号 / 密码（明文） |
 | `resetDay` / `resetTime` | 是 | 每周重置：周几（1 = 周一 … 7 = 周日）/ `HH:MM` |
-| `subStart` | 是 | 订阅开始日期 `YYYY-MM-DD`，订阅一个月，到期日自动算；到期后即使有额度也不可用 |
+| `subStart` | 是 | 订阅开始时间 `YYYY-MM-DDTHH:MM`（只给日期按 00:00），订阅一个月，到期时刻自动算；到期后即使有额度也不可用 |
 | `used` | 是 | 已用额度 0 到 100 |
 | `quotaUpdatedAt` | 自动 | 上次记录已用额度的时间；早于最近一次重置点时前端按「已重置」（0%）显示 |
 | `notes` `mailPlatform` `recoveryEmail` `phone` `smsPlatform` `totp` | 否 | 备注、邮件接码平台、辅助邮箱、手机号、短信接码平台、2FA |
