@@ -31,6 +31,10 @@ const ICONS = {
   target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
+  archive: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  restore: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  chevron: '<polyline points="9 18 15 12 9 6"/>',
 };
 const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -46,18 +50,39 @@ const STATUS = {
   reset:     { label: '已重置', icon: 'refresh' },
   expired:   { label: '已到期', icon: 'ban' },
 };
-// 服务商色卡：常见名字固定配色；数据里出现的其它服务商按名称顺序从备用色卡里领一个（同一份数据里稳定）
-const PROVIDER_COLORS = { claude: '#e8743b', anthropic: '#e8743b', chatgpt: '#6d5ce7', openai: '#6d5ce7', codex: '#6d5ce7', gemini: '#d9538f', google: '#d9538f', copilot: '#4b8ad6', cursor: '#b8860b', kimi: '#1f9bcf', deepseek: '#4f6bed', qwen: '#7c3aed', windsurf: '#0ea5a4', trae: '#c2410c' };
+const ARCHIVE_REASONS = {
+  banned:  { label: '已封号', icon: 'lock' },
+  expired: { label: '已到期', icon: 'ban' },
+  other:   { label: '其他',   icon: 'archive' },
+};
+// 服务商和档位平铺在一个字段里：Claude 5X、Claude 20X、ChatGPT 5X…… 下面是新增账号时的候选，也可以手填别的
+const PROVIDER_BASES = ['Claude', 'ChatGPT', 'Gemini', 'Copilot', 'Cursor'];
+const TIERS = ['5X', '20X'];
+const DEFAULT_TIER = '20X';                              // 升级前的账号都按 20X 处理（后端迁移时已改名）
+const PROVIDER_PRESETS = PROVIDER_BASES.flatMap(b => TIERS.map(t => `${b} ${t}`));
+const TIER_RE = /^(.*?)[\s_-]*(\d+)\s*[x×]$/i;
+function provParts(p) {                                  // 'Claude 20X' → { base: 'claude', tier: 20 }；没写档位的 tier 为 0
+  const s = String(p || '').trim();
+  const m = TIER_RE.exec(s);
+  return m && m[1] ? { base: m[1].toLowerCase(), tier: +m[2] } : { base: s.toLowerCase(), tier: 0 };
+}
+// 服务商色卡：常见名字固定配色；数据里出现的其它服务商按名称顺序从备用色卡里领一个（同一份数据里稳定）。同名不同档位同色
+const PROVIDER_COLORS = { claude: '#e8743b', anthropic: '#e8743b', chatgpt: '#6d5ce7', gpt: '#6d5ce7', openai: '#6d5ce7', codex: '#6d5ce7', gemini: '#d9538f', google: '#d9538f', copilot: '#4b8ad6', cursor: '#b8860b', kimi: '#1f9bcf', deepseek: '#4f6bed', qwen: '#7c3aed', windsurf: '#0ea5a4', trae: '#c2410c' };
 const PROVIDER_FALLBACK = ['#0f766e', '#a21caf', '#b45309', '#1d4ed8', '#be123c', '#4d7c0f', '#6b7280'];
-// 时间线里服务商的排列顺序：Claude 最上，ChatGPT 其次……不在表里的按名称排在最后
-const PROVIDER_RANK = { claude: 0, anthropic: 0, chatgpt: 1, openai: 1, codex: 1, gemini: 2, google: 2, copilot: 3, cursor: 4, kimi: 5, deepseek: 6, qwen: 7, windsurf: 8, trae: 9 };
-const provRank = p => { const k = String(p || '').trim().toLowerCase(); return k in PROVIDER_RANK ? PROVIDER_RANK[k] : 99; };
+// 时间线里服务商的排列顺序：Claude 最上，ChatGPT 其次……不在表里的按名称排在最后；同名的 5X 在 20X 前面
+const PROVIDER_RANK = { claude: 0, anthropic: 0, chatgpt: 1, gpt: 1, openai: 1, codex: 1, gemini: 2, google: 2, copilot: 3, cursor: 4, kimi: 5, deepseek: 6, qwen: 7, windsurf: 8, trae: 9 };
+const baseRank = k => (k in PROVIDER_RANK ? PROVIDER_RANK[k] : 99);
+function cmpProvider(pa, pb) {
+  const a = provParts(pa), b = provParts(pb);
+  return baseRank(a.base) - baseRank(b.base) || a.base.localeCompare(b.base, 'zh-Hans-CN') || a.tier - b.tier
+    || String(pa || '').localeCompare(String(pb || ''), 'zh-Hans-CN');
+}
 let providerOrder = [];
 function refreshProviderOrder() {
-  providerOrder = [...new Set(accounts.map(a => String(a.provider || '').trim().toLowerCase()).filter(k => k && !PROVIDER_COLORS[k]))].sort();
+  providerOrder = [...new Set(accounts.map(a => provParts(a.provider).base).filter(k => k && !PROVIDER_COLORS[k]))].sort();
 }
 function provColor(p) {
-  const k = String(p || '').trim().toLowerCase();
+  const k = provParts(p).base;
   if (PROVIDER_COLORS[k]) return PROVIDER_COLORS[k];
   const i = providerOrder.indexOf(k);
   return i < 0 ? '#8a9a94' : PROVIDER_FALLBACK[i % PROVIDER_FALLBACK.length];
@@ -69,6 +94,7 @@ const H = 3600e3, D = 24 * H;
 const pad = n => String(n).padStart(2, '0');
 const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const nowLocalStr = () => { const d = new Date(); return `${dateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };   // datetime-local 控件的值格式
+const fmtFull = d => `${dateStr(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;                                          // 带年份：归档的账号可能放很久
 const toLocalInput = s => (s.includes('T') ? s.slice(0, 16) : s + 'T00:00');                                              // 旧数据只有日期时补 00:00
 const parseLocal = s => new Date(s.includes('T') ? s : s + 'T00:00');                                                       // 不带时区 → 按本地时间解析
 
@@ -79,8 +105,9 @@ let view = 'cards';
 let sortBy = 'provider';
 let filterProvider = '';
 let filterOwner = '';
+let archiveOpen = false;                                 // 归档栏默认收起
 const revealed = new Set();
-// 记住排序 / 视图 / 筛选（仅本浏览器）
+// 记住排序 / 视图 / 筛选 / 归档栏是否展开（仅本浏览器）
 const PREF_KEY = 'quotaboard.prefs';
 function loadPrefs() {
   try {
@@ -89,6 +116,7 @@ function loadPrefs() {
     if (['cards', 'table'].includes(p.view)) view = p.view;
     if (typeof p.filterOwner === 'string') filterOwner = p.filterOwner;
     if (typeof p.filterProvider === 'string') filterProvider = p.filterProvider;
+    if (typeof p.archiveOpen === 'boolean') archiveOpen = p.archiveOpen;
   } catch { /* 私密模式等 */ }
   // 网址里的 ?user=名字 / ?provider=名字 优先：每个人可以收藏自己的地址
   const q = new URLSearchParams(location.search);
@@ -96,7 +124,7 @@ function loadPrefs() {
   if (q.has('provider')) filterProvider = q.get('provider').trim();
 }
 function savePrefs() {
-  try { localStorage.setItem(PREF_KEY, JSON.stringify({ sortBy, view, filterOwner, filterProvider })); } catch { /* ignore */ }
+  try { localStorage.setItem(PREF_KEY, JSON.stringify({ sortBy, view, filterOwner, filterProvider, archiveOpen })); } catch { /* ignore */ }
   syncUrl();
 }
 function syncUrl() {   // 地址栏跟着筛选走，随时可以复制 / 收藏
@@ -153,6 +181,15 @@ async function deleteAccount(id) {
   accounts = accounts.filter(a => a.id !== id);
   render();
 }
+async function setArchived(id, archived, reason) {
+  try {
+    replaceLocal(await api('PUT', `/api/accounts/${id}`, archived ? { archived: true, archiveReason: reason } : { archived: false }));
+    render();
+    toast(archived ? '已移到归档栏（页面底部）' : '已移回账号区');
+  } catch (err) {
+    toast(`${archived ? '归档' : '移回'}失败：${err.message}`);
+  }
+}
 
 /* ===================== 派生计算 ===================== */
 function nextReset(acc, now = new Date()) {
@@ -186,15 +223,18 @@ function derive(acc, now = new Date()) {
   const deadlineType = deadline && deadline === subEnd ? 'expiry' : 'reset';
   return { ...acc, next, last, updated, inferredReset, usedEff, subStart, subEnd, daysLeft, expired, expiringSoon, status, deadline, deadlineType };
 }
-function sortedList() {
-  let list = accounts.map(a => derive(a));
+function filtered(archived) {                              // 归档的账号只出现在归档栏，不进总览、时间线和账号区
+  let list = accounts.filter(a => !!a.archived === archived).map(a => derive(a));
   if (filterOwner) list = list.filter(a => !ownerOf(a) || ownerOf(a) === filterOwner);   // 共享账号在任何用户下都显示
   if (filterProvider) list = list.filter(a => a.provider === filterProvider);
+  return list;
+}
+function sortedList() {
+  const list = filtered(false);
   // 排序只看账号自身属性（服务商、订阅起始、重置时刻、订阅到期），与已用额度无关，拖动进度条不会改变位置
   const bySubStart = (a, b) => String(a.subStart || '').localeCompare(String(b.subStart || '')) || a.id - b.id;   // 起始早的在前，再按录入先后
-  const byProvider = (a, b) => provRank(a.provider) - provRank(b.provider) || String(a.provider || '').localeCompare(String(b.provider || ''), 'zh-Hans-CN');
   const CMP = {
-    provider: (a, b) => byProvider(a, b) || bySubStart(a, b),
+    provider: (a, b) => cmpProvider(a.provider, b.provider) || bySubStart(a, b),
     reset:    (a, b) => a.next - b.next || bySubStart(a, b),
     expiry:   (a, b) => (a.subEnd || Infinity) - (b.subEnd || Infinity) || bySubStart(a, b),
   };
@@ -204,6 +244,7 @@ function sortedList() {
   list.forEach(a => { a.recommended = !!rec && a.id === rec.id; });
   return list;
 }
+const archivedList = () => filtered(true).sort((a, b) => String(b.archivedAt || '').localeCompare(String(a.archivedAt || '')) || b.id - a.id);   // 最近归档的在前
 function groupByOwner(list) {
   const groups = new Map();
   list.forEach(a => { const k = ownerOf(a) || SHARED; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
@@ -313,9 +354,7 @@ function renderTimeline(list) {
   const totalDays = Math.ceil((Math.max(start.getTime() + 8 * D, lastEnd + D) - start.getTime()) / D);
   const W = totalDays * TL.scale;
   // 先按服务商分组（Claude → ChatGPT → …），组内已到期沉底、再按最先到来的到期 / 重置
-  const lanes = [...list].sort((a, b) => provRank(a.provider) - provRank(b.provider)
-    || String(a.provider || '').localeCompare(String(b.provider || ''), 'zh-Hans-CN')
-    || (a.expired - b.expired) || (a.deadline - b.deadline));
+  const lanes = [...list].sort((a, b) => cmpProvider(a.provider, b.provider) || (a.expired - b.expired) || (a.deadline - b.deadline));
   const rows = [];
   let lastProv = null;
   for (const a of lanes) {
@@ -455,14 +494,26 @@ function subLine(a) {
   if (a.expiringSoon) return `${range}<span class="spacer"></span><span class="pill xs s-low">${icon('alert', 'sm')}${a.daysLeft <= 1 ? '今天' : `${a.daysLeft} 天后`}到期</span>`;
   return `${range}<span class="spacer"></span><span class="faint">剩余 ${a.daysLeft} 天</span>`;
 }
+const ARCHIVE_TIP = '已封号、已到期的账号可以移到归档栏，之后随时移回';
 function actionsHTML(a, compact = false) {
   const primary = a.expired
     ? `<button class="btn sm" data-renew="${a.id}">${compact ? '' : icon('calendar', 'sm')}续订</button>`
     : a.inferredReset
       ? `<button class="btn sm" data-confirm-reset="${a.id}">${compact ? '' : icon('check', 'sm')}确认已重置</button>`
       : `<button class="btn sm" data-quick="${a.id}">${compact ? '' : icon('gauge', 'sm')}更新额度</button>`;
-  return `${primary}<button class="btn sm ghost" data-edit="${a.id}">${compact ? '' : icon('edit', 'sm')}编辑</button>`;
+  const edit = `<button class="btn sm ghost" data-edit="${a.id}">${compact ? '' : icon('edit', 'sm')}编辑</button>`;
+  return compact
+    ? `${primary}${edit}<button class="icon-btn" data-archive="${a.id}" title="归档：${ARCHIVE_TIP}">${icon('archive', 'sm')}</button>`
+    : `<button class="btn sm ghost lead" data-archive="${a.id}" title="${ARCHIVE_TIP}">${icon('archive', 'sm')}归档</button>${primary}${edit}`;
 }
+function archivedActionsHTML(a, compact = false) {
+  return `<button class="btn sm" data-unarchive="${a.id}" title="移回账号区，重新计入总览和时间线">${compact ? '' : icon('restore', 'sm')}移回</button>`
+    + `<button class="btn sm ghost" data-edit="${a.id}">${compact ? '' : icon('edit', 'sm')}编辑</button>`;
+}
+const reasonOf = a => (ARCHIVE_REASONS[a.archiveReason] ? a.archiveReason : 'other');
+const reasonHTML = a => `<span class="pill r-${reasonOf(a)}">${icon(ARCHIVE_REASONS[reasonOf(a)].icon, 'sm')}${ARCHIVE_REASONS[reasonOf(a)].label}</span>`;
+const ownerHTML = a => ownerOf(a) ? `<span class="prov">${icon('user', 'sm')}${esc(ownerOf(a))}</span>` : sharedHTML(a);   // 归档栏不按用户分组，标在卡片上
+const archivedAtOf = a => { const d = a.archivedAt ? new Date(a.archivedAt) : null; return d && !isNaN(d) ? d : null; };
 
 function cardHTML(a) {
   const now = Date.now();
@@ -515,16 +566,71 @@ function tableHTML(list) {
     <tbody>${body}</tbody></table></div>`;
 }
 
+/* ===================== 渲染：归档栏 ===================== */
+function archivedCardHTML(a) {
+  const at = archivedAtOf(a);
+  return `<article class="card acct archived" data-id="${a.id}">
+    <div class="head"><div class="who">${provHTML(a)}${ownerHTML(a)}</div>${reasonHTML(a)}</div>
+    <div class="name">${esc(a.name)}</div>
+    <div class="login">${esc(a.account)}<button class="icon-btn" data-copy="${esc(a.account)}" title="复制账号">${icon('copy', 'sm')}</button></div>
+    <div class="meta">${icon('archive', 'sm')}${at ? `${fmtFull(at)} 归档<span class="spacer"></span><span class="faint">${fmtRel(at)}</span>` : '已归档'}</div>
+    <div class="meta">${icon('calendar', 'sm')}${subLine(a)}</div>
+    ${a.notes ? `<div class="meta notes" title="${esc(a.notes)}">${icon('note', 'sm')}<span>${esc(a.notes)}</span></div>` : ''}
+    <div class="creds">${pwHTML(a)}${chipsHTML(a)}</div>
+    <div class="actions">${archivedActionsHTML(a)}</div>
+  </article>`;
+}
+function archivedTableHTML(list) {
+  const row = a => { const at = archivedAtOf(a); return `<tr class="archived" data-id="${a.id}">
+      <td class="strong">${esc(a.name)}</td>
+      <td>${provHTML(a)}</td>
+      <td>${ownerHTML(a)}</td>
+      <td class="mono">${esc(a.account)}<button class="icon-btn" data-copy="${esc(a.account)}" title="复制账号">${icon('copy', 'sm')}</button></td>
+      <td>${reasonHTML(a)}</td>
+      <td class="num">${at ? `${fmtFull(at)} <span class="muted">${fmtRel(at)}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="num">${a.subEnd ? fmtFull(a.subEnd) + (a.expired ? ' <span class="muted">已到期</span>' : ` <span class="muted">${a.daysLeft} 天后</span>`) : '—'}</td>
+      <td class="mono">${pwHTML(a)}</td>
+      <td>${chipsHTML(a, true) || '<span class="muted">—</span>'}</td>
+      <td class="notes" title="${esc(a.notes)}">${esc(a.notes) || '<span class="muted">—</span>'}</td>
+      <td>${archivedActionsHTML(a, true)}</td>
+    </tr>`; };
+  return `<div class="card table-wrap"><table class="list">
+    <thead><tr><th>用户名</th><th>服务商</th><th>用户</th><th>账号</th><th>归档原因</th><th>归档时间</th><th>订阅到期</th><th>密码</th><th>附加</th><th>备注</th><th></th></tr></thead>
+    <tbody>${list.map(row).join('')}</tbody></table></div>`;
+}
+function renderArchive(list) {
+  const host = document.getElementById('archive');
+  const total = accounts.filter(a => a.archived).length;
+  host.hidden = !total;                                     // 一个归档的都没有时整栏不显示
+  if (!total) { host.innerHTML = ''; return; }
+  const parts = Object.keys(ARCHIVE_REASONS).map(k => [k, list.filter(a => reasonOf(a) === k).length]).filter(([, n]) => n)
+    .map(([k, n]) => `${ARCHIVE_REASONS[k].label} ${n}`);
+  const count = list.length === total ? `${total} 个` : `${list.length} 个 · 共 ${total} 个`;
+  const body = !list.length ? `<div class="card empty">当前筛选下没有归档的账号</div>`
+    : view === 'cards' ? `<div class="grid">${list.map(archivedCardHTML).join('')}</div>` : archivedTableHTML(list);
+  host.innerHTML = `
+    <button type="button" class="archive-head" data-archive-toggle aria-expanded="${archiveOpen}" aria-controls="archiveBody">
+      ${icon('chevron', 'sm')}<h2>归档</h2><span class="count">${[count, ...parts].join(' · ')}</span>
+      <span class="hint">已封号、已到期的账号放这里，不计入总览和时间线，随时可以移回</span>
+    </button>
+    <div id="archiveBody" ${archiveOpen ? '' : 'hidden'}>${archiveOpen ? body : ''}</div>`;
+}
+
 function renderFilters() {
   const owners = [...new Set(accounts.map(ownerOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
-  const provs = [...new Set(accounts.map(a => a.provider).filter(Boolean))].sort();
+  const provs = [...new Set(accounts.map(a => a.provider).filter(Boolean))].sort(cmpProvider);
   if (accounts.length) {   // 数据还没加载时不要动筛选，否则刷新后记住的用户会被清掉
     if (filterOwner && !owners.includes(filterOwner)) { filterOwner = ''; syncUrl(); }
-    if (filterProvider && !provs.includes(filterProvider)) { filterProvider = ''; syncUrl(); }
+    if (filterProvider && !provs.includes(filterProvider)) {   // 升级前收藏的 ?provider=Claude 对应现在的 Claude 20X
+      const legacy = `${filterProvider} ${DEFAULT_TIER}`.toLowerCase();
+      filterProvider = provs.find(p => p.toLowerCase() === legacy) || '';
+      syncUrl();
+    }
   }
   document.getElementById('ownerFilter').innerHTML = `<option value="">全部</option>` + owners.map(o => `<option value="${esc(o)}" ${o === filterOwner ? 'selected' : ''}>${esc(o)}</option>`).join('');
   document.getElementById('provFilter').innerHTML = `<option value="">全部</option>` + provs.map(p => `<option value="${esc(p)}" ${p === filterProvider ? 'selected' : ''}>${esc(p)}</option>`).join('');
   document.getElementById('owners').innerHTML = [SHARED, ...owners].map(o => `<option value="${esc(o)}">`).join('');
+  document.getElementById('providers').innerHTML = [...new Set([...PROVIDER_PRESETS, ...provs])].sort(cmpProvider).map(p => `<option value="${esc(p)}">`).join('');
 }
 function renderFooter() {
   document.getElementById('logoutForm').hidden = !(health && health.authEnabled);
@@ -537,11 +643,17 @@ function render() {
   renderOverview(list);
   renderTimeline(list);
   const groups = groupByOwner(list);
-  document.getElementById('countLabel').textContent = filterOwner ? `${list.length} 个 · ${filterOwner}` : `${list.length} 个 · ${groups.length} 个用户标签`;
+  const archived = archivedList();
+  document.getElementById('countLabel').textContent = (filterOwner ? `${list.length} 个 · ${filterOwner}` : `${list.length} 个 · ${groups.length} 个用户标签`)
+    + (archived.length ? ` · 另有 ${archived.length} 个已归档` : '');
   renderFooter();
+  renderArchive(archived);
   const host = document.getElementById('accounts');
   if (!list.length) {
-    host.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--ink-3)">${accounts.length ? '当前筛选下没有账号' : '还没有账号，点右上角「新增账号」开始'}</div>`;
+    const msg = !accounts.length ? '还没有账号，点右上角「新增账号」开始'
+      : archived.length ? `${filterOwner || filterProvider ? '当前筛选下' : ''}没有在用的账号，${archived.length} 个在下面的归档栏里`
+      : '当前筛选下没有账号';
+    host.innerHTML = `<div class="card empty">${msg}</div>`;
     return;
   }
   host.innerHTML = view === 'cards' ? boardHTML(list) : tableHTML(list);
@@ -584,7 +696,7 @@ function openEditor(id, opts = {}) {
   const a = id ? accounts.find(x => x.id === id) : null;
   const f = editorForm.elements;
   editorForm.reset();
-  document.getElementById('editorTitle').textContent = a ? (opts.renew ? `续订 · ${a.name}` : `编辑账号 · ${a.name}`) : '新增账号';
+  document.getElementById('editorTitle').textContent = a ? (opts.renew ? `续订 · ${a.name}` : `编辑账号 · ${a.name}${a.archived ? '（已归档）' : ''}`) : '新增账号';
   f.owner.value = a ? (ownerOf(a) || SHARED) : (filterOwner || SHARED);   // 新增时默认「全部」，正在筛选某个用户则默认该用户
   f.name.value = a?.name || ''; f.provider.value = a?.provider || ''; f.account.value = a?.account || ''; f.password.value = a?.password || '';
   f.resetDay.value = a?.resetDay || 1; f.resetTime.value = a?.resetTime || '08:00';
@@ -661,8 +773,23 @@ document.getElementById('quickZero').addEventListener('click', () => {
   applyUsed(+quickForm.dataset.id, 0, '已记为 0%');
 });
 
+const archiveDlg = document.getElementById('archiveDlg'), archiveForm = document.getElementById('archiveForm');
+function openArchive(id) {
+  const a = accounts.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('archiveTitle').textContent = `归档 · ${a.name}`;
+  archiveForm.elements.reason.value = derive(a).expired ? 'expired' : 'banned';   // 已到期的默认选「已到期」，其余默认「已封号」
+  archiveForm.dataset.id = id;
+  archiveDlg.showModal();
+}
+archiveForm.addEventListener('submit', e => {
+  e.preventDefault();
+  archiveDlg.close();
+  setArchived(+archiveForm.dataset.id, true, archiveForm.elements.reason.value);
+});
+
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-copy],[data-toggle-pw],[data-quick],[data-edit],[data-renew],[data-confirm-reset],[data-goto],[data-close],[data-tl]');
+  const t = e.target.closest('[data-copy],[data-toggle-pw],[data-quick],[data-edit],[data-renew],[data-confirm-reset],[data-archive],[data-unarchive],[data-archive-toggle],[data-goto],[data-close],[data-tl]');
   if (!t) return;
   if (t.dataset.copy != null)     return copyText(t.dataset.copy);
   if (t.dataset.togglePw)         { const id = +t.dataset.togglePw; revealed.has(id) ? revealed.delete(id) : revealed.add(id); return render(); }
@@ -670,6 +797,9 @@ document.addEventListener('click', e => {
   if (t.dataset.edit)             return openEditor(+t.dataset.edit);
   if (t.dataset.renew)            return openEditor(+t.dataset.renew, { renew: true });
   if (t.dataset.confirmReset)     return applyUsed(+t.dataset.confirmReset, 0, '已确认重置，记为 0%');
+  if (t.dataset.archive)          return openArchive(+t.dataset.archive);
+  if (t.dataset.unarchive)        return setArchived(+t.dataset.unarchive, false);
+  if (t.dataset.archiveToggle != null) { archiveOpen = !archiveOpen; savePrefs(); return render(); }
   if (t.dataset.close)            return document.getElementById(t.dataset.close).close();
   if (t.dataset.tl) {
     const scroller = document.querySelector('.tl-scroll');

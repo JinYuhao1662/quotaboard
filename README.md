@@ -35,8 +35,19 @@ uv run pytest -q                               # 测试
 
 ## 每个人自己的地址
 
-`http://<主机>:<端口>/?user=<用户标签>` 只显示该用户的账号（含共享账号），例如 `http://192.168.50.201:38471/?user=我`；`?provider=Claude` 同理。
+`http://<主机>:<端口>/?user=<用户标签>` 只显示该用户的账号（含共享账号），例如 `http://192.168.50.201:38471/?user=我`；`?provider=Claude+20X` 同理（升级前收藏的 `?provider=Claude` 会自动对应到 `Claude 20X`）。
 切换筛选时地址栏会自动同步，直接收藏即可；未登录打开会先去登录，登录后跳回原地址。排序、视图和上次的筛选也会记在浏览器里。
+
+## 服务商档位
+
+服务商和档位平铺在同一个字段里：`Claude 5X`、`Claude 20X`、`ChatGPT 5X`、`ChatGPT 20X`……新增账号时从候选里选，也可以手填别的名字。
+结尾的档位会统一写成「空格 + 数字 + 大写 X」（`claude-20x`、`Claude 20×` 都存成 `… 20X`），同一档不会分成几组。
+配色和排列顺序只看名称，同名的 5X 排在 20X 前面。
+
+## 归档
+
+已封号、已到期的账号可以移到归档栏：卡片左下角（列表视图是每行最后）的「归档」，选一个原因（已封号 / 已到期 / 其他）即可。
+归档的账号不计入总览、时间线和账号区，集中显示在页面底部的归档栏（默认收起，点标题展开），账号信息原样保留；点「移回」回到账号区。筛选对归档栏同样生效。
 
 ## 访问口令与自锁
 
@@ -54,21 +65,29 @@ uv run pytest -q                               # 测试
 
 ## 数据文件
 
-`data/accounts.json`，结构：`{"version": 1, "nextId": N, "accounts": [ … ]}`。每个账号：
+`data/accounts.json`，结构：`{"version": 2, "nextId": N, "accounts": [ … ]}`。每个账号：
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | `owner` | 否 | 用户标签（这个号给谁用），账号区按它分组；留空或填「全部」= 共享账号，不归属任何人，筛选任何用户时都显示 |
 | `name` | 是 | 用户名（显示名） |
-| `provider` | 是 | 服务商，如 Claude、ChatGPT；前端按名字匹配色卡，未知名字从备用色卡顺序取色 |
+| `provider` | 是 | 服务商 + 档位，如 Claude 20X、ChatGPT 5X；前端按名字（不含档位）匹配色卡，未知名字从备用色卡顺序取色 |
 | `account` / `password` | 是 | 登录账号 / 密码（明文） |
 | `resetDay` / `resetTime` | 是 | 每周重置：周几（1 = 周一 … 7 = 周日）/ `HH:MM` |
 | `subStart` | 是 | 订阅开始时间 `YYYY-MM-DDTHH:MM`（只给日期按 00:00），订阅一个月，到期时刻自动算；到期后即使有额度也不可用 |
 | `used` | 是 | 已用额度 0 到 100 |
 | `quotaUpdatedAt` | 自动 | 上次记录已用额度的时间；早于最近一次重置点时前端按「已重置」（0%）显示 |
 | `notes` `mailPlatform` `recoveryEmail` `phone` `smsPlatform` `totp` | 否 | 备注、邮件接码平台、辅助邮箱、手机号、短信接码平台、2FA |
+| `archived` | 否 | 是否在归档栏，默认 `false` |
+| `archiveReason` | 否 | 归档原因：`banned`（已封号）/ `expired`（已到期）/ `other`（其他）；归档时没给按 `other`，移回后清空 |
+| `archivedAt` | 自动 | 归档时间；移回后清空 |
 
 写入是「写临时文件再替换」的原子操作，多线程访问加锁。
+
+### 从 v1 升级
+
+启动时发现数据文件是 v1（或更早、没写 `version`），会先原样备份成 `accounts.json.v1.bak`，再升级落盘：
+没写档位的服务商一律补上 `20X`（`Claude` → `Claude 20X`），已经写了档位的只做规范化；所有账号补上归档字段（未归档）。备份已存在时不会覆盖。
 
 ## API（除 `/api/ping`、`/login`、`/logout` 外都要先登录，未登录返回 401）
 
@@ -77,9 +96,9 @@ uv run pytest -q                               # 测试
 | GET | `/api/ping` | 存活探针，不带数据 |
 | GET / POST | `/login` | 登录页 / 表单提交（`password` 字段），成功后 302 回首页并下发 Cookie |
 | POST | `/logout` | 退出，清 Cookie |
-| GET | `/api/accounts` | 全部账号 |
+| GET | `/api/accounts` | 全部账号（含已归档的，由前端分栏） |
 | POST | `/api/accounts` | 新增，返回 201 |
-| PUT | `/api/accounts/{id}` | 局部更新（只改提交的字段）。提交了 `used` 就刷新 `quotaUpdatedAt` |
+| PUT | `/api/accounts/{id}` | 局部更新（只改提交的字段）。提交了 `used` 就刷新 `quotaUpdatedAt`；归档 `{"archived": true, "archiveReason": "banned"}`，移回 `{"archived": false}` |
 | DELETE | `/api/accounts/{id}` | 删除 |
 | GET | `/api/health` | 数据文件路径、账号数、修改时间、是否启用口令 / TLS |
 

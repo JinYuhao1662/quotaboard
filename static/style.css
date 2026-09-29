@@ -94,6 +94,10 @@
     --track: color-mix(in oklab, var(--fill) 16%, var(--surface));
     --tint:  color-mix(in oklab, var(--fill) 10%, var(--surface));
   }
+  .r-banned    { --fill: var(--crit); }     /* 归档原因 */
+  .r-expired   { --fill: var(--ink-3); }
+  .r-other     { --fill: var(--info); }
+  .r-banned, .r-expired, .r-other { --tint: color-mix(in oklab, var(--fill) 10%, var(--surface)); }
   .pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px 0 7px; border-radius: 999px; background: var(--tint); border: 1px solid color-mix(in oklab, var(--fill) 28%, transparent); font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; flex: none; }
   .pill svg { color: var(--fill); }
   .pill.xs { height: 20px; font-size: 11px; padding: 0 7px 0 5px; }
@@ -238,6 +242,25 @@
   .chip.pw.shown { color: var(--ink); }
   .chip svg { color: var(--ink-3); }
   .actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .actions .lead { margin-right: auto; color: var(--ink-3); }
+  .actions .lead:hover { color: var(--ink); }
+  .card.empty { padding: 40px; text-align: center; color: var(--ink-3); }
+
+  /* ---------- archive ---------- */
+  .archive { margin-top: 26px; }
+  .archive-head { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; width: 100%; padding: 12px 2px; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; }
+  .archive-head h2 { font-size: 15px; font-weight: 700; margin: 0; }
+  .archive-head svg { align-self: center; color: var(--ink-3); transition: transform .15s; }
+  .archive-head[aria-expanded="true"] svg { transform: rotate(90deg); }
+  .archive-head .count { color: var(--ink-3); font-weight: 500; font-size: 13px; }
+  .archive-head .hint { color: var(--ink-3); font-size: 12px; margin-left: auto; }
+  .archive-head:hover h2 { color: var(--accent); }
+  .archive-head:focus-visible { outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent); outline-offset: 2px; border-radius: 8px; }
+  #archiveBody { padding-top: 2px; }
+  .acct.archived { background: var(--surface-2); box-shadow: none; }
+  .acct.archived:hover { box-shadow: none; }
+  .acct.archived .name { color: var(--ink-2); }
+  tr.archived td.strong { color: var(--ink-2); }
 
   /* ---------- table view ---------- */
   .table-wrap { overflow: auto; }
@@ -288,6 +311,12 @@
   details.optional[open] summary svg { transform: rotate(90deg); }
   details.optional[open] summary { margin-bottom: 12px; }
   .muted { color: var(--ink-3); font-weight: 400; font-size: 12.5px; }
+  .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .choice { position: relative; display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); font-weight: 600; cursor: pointer; }
+  .choice input { position: absolute; opacity: 0; pointer-events: none; }
+  .choice:hover { background: var(--surface-2); }
+  .choice:has(input:checked) { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, var(--surface)); color: var(--ink); }
+  .choice:has(input:focus-visible) { outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent); outline-offset: 1px; }
   .quick-value { font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
   .quick-value small { font-size: 14px; font-weight: 600; color: var(--ink-3); margin-left: 4px; }
 

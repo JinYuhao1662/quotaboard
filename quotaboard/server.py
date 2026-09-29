@@ -307,10 +307,12 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorized():
                 return self._deny(path)
             if (id_ := self._account_id(parts)) is not None:
-                acc = self.server.storage.update(id_, self._read_json())
+                body = self._read_json()
+                acc = self.server.storage.update(id_, body)
                 if acc is None:
                     return self._error(HTTPStatus.NOT_FOUND, "账号不存在")
-                log.info("更新账号 #%s %s", acc["id"], acc["name"])
+                action = "更新" if "archived" not in body else "归档" if acc["archived"] else "移回"
+                log.info("%s账号 #%s %s", action, acc["id"], acc["name"])
                 return self._json(HTTPStatus.OK, acc)
             return self._error(HTTPStatus.NOT_FOUND, "Not found")
         except ValidationError as e:
