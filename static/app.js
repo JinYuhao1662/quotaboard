@@ -598,19 +598,16 @@ function archivedTableHTML(list) {
     <thead><tr><th>用户名</th><th>服务商</th><th>用户</th><th>账号</th><th>归档原因</th><th>归档时间</th><th>订阅到期</th><th>密码</th><th>附加</th><th>备注</th><th></th></tr></thead>
     <tbody>${list.map(row).join('')}</tbody></table></div>`;
 }
-function renderArchive(list) {
+function renderArchive(list) {                             // 和总览、账号区一样只看当前筛选下的账号，别人的归档不计数也不显示
   const host = document.getElementById('archive');
-  const total = accounts.filter(a => a.archived).length;
-  host.hidden = !total;                                     // 一个归档的都没有时整栏不显示
-  if (!total) { host.innerHTML = ''; return; }
+  host.hidden = !list.length;                               // 当前筛选下一个归档的都没有时整栏不显示
+  if (!list.length) { host.innerHTML = ''; return; }
   const parts = Object.keys(ARCHIVE_REASONS).map(k => [k, list.filter(a => reasonOf(a) === k).length]).filter(([, n]) => n)
     .map(([k, n]) => `${ARCHIVE_REASONS[k].label} ${n}`);
-  const count = list.length === total ? `${total} 个` : `${list.length} 个 · 共 ${total} 个`;
-  const body = !list.length ? `<div class="card empty">当前筛选下没有归档的账号</div>`
-    : view === 'cards' ? `<div class="grid">${list.map(archivedCardHTML).join('')}</div>` : archivedTableHTML(list);
+  const body = view === 'cards' ? `<div class="grid">${list.map(archivedCardHTML).join('')}</div>` : archivedTableHTML(list);
   host.innerHTML = `
     <button type="button" class="archive-head" data-archive-toggle aria-expanded="${archiveOpen}" aria-controls="archiveBody">
-      ${icon('chevron', 'sm')}<h2>归档</h2><span class="count">${[count, ...parts].join(' · ')}</span>
+      ${icon('chevron', 'sm')}<h2>归档</h2><span class="count">${[`${list.length} 个`, ...parts].join(' · ')}</span>
       <span class="hint">已封号、已到期的账号放这里，不计入总览和时间线，随时可以移回</span>
     </button>
     <div id="archiveBody" ${archiveOpen ? '' : 'hidden'}>${archiveOpen ? body : ''}</div>`;
